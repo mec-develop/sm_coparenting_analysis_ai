@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import subprocess
 from supabase_client import supabase
 
 
@@ -82,6 +83,51 @@ elif active_analysis == "Video Analysis" and selected_page == "Ingest":
         st.write("Files in uploads:")
         for file_name in files:
             st.write(f"- {file_name}")
+    if st.button("Process Videos"):
+        st.write("Processing started…")
+        upload_dir = "uploads"
+        audio_dir = "audio"
+        os.makedirs(audio_dir, exist_ok=True)
+
+        for file_name in os.listdir(upload_dir):
+            input_path = os.path.join(upload_dir, file_name)
+            output_name = os.path.splitext(file_name)[0] + ".wav"
+            output_path = os.path.join(audio_dir, output_name)
+
+            if os.path.exists(output_path):
+                st.write(f"Audio already exists for {file_name}")
+            else:
+                subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-i",
+                        input_path,
+                        "-ac",
+                        "1",
+                        "-ar",
+                        "16000",
+                        output_path,
+                    ]
+                )
+                st.write(f"Audio generated for {file_name}")
+                norm_output_path = os.path.join(
+                    audio_dir,
+                    os.path.splitext(file_name)[0] + "_norm.wav",
+                )
+                if not os.path.exists(norm_output_path):
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-i",
+                            output_path,
+                            "-filter:a",
+                            "loudnorm",
+                            norm_output_path,
+                        ]
+                    )
+                    st.write(f"Normalized audio generated for {file_name}")
+                else:
+                    st.write(f"Normalized audio already exists for {file_name}")
     st.subheader("Processing Status")
     upload_dir = "uploads"
     files = []
@@ -92,7 +138,16 @@ elif active_analysis == "Video Analysis" and selected_page == "Ingest":
     status_rows = [
         {
             "File Name": file_name,
-            "Audio": "Pending",
+            "Audio": (
+                "Done"
+                if os.path.exists(
+                    os.path.join(
+                        "audio",
+                        os.path.splitext(file_name)[0] + ".wav",
+                    )
+                )
+                else "Pending"
+            ),
             "Transcript": "Pending",
             "Scored": "Pending",
             "Ready": "Pending",
